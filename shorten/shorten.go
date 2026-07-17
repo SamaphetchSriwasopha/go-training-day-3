@@ -2,145 +2,88 @@ package shorten
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
-	"io"
+	"errors"
 	"net/http"
-	"sync"
 	"time"
-
-	_ "github.com/mattn/go-sqlite3"
 )
-
-type Handler struct {
-	db *sql.DB
-}
-
-func NewHandler(db *sql.DB) *Handler {
-	return &Handler{db: db}
-}
 
 type ShortenURL struct {
 	URL string `json:"url"`
 }
-type database struct {
-	mux  sync.Mutex
-	data map[string]string
+
+type shorter interface {
+	generate() (string, error)
 }
 
-var db = database{
-	mux:  sync.Mutex{},
-	data: make(map[string]string),
+type storer interface {
+	Save(ctx context.Context, shortenURL, rawURL string) error
 }
 
-const schema = `CREATE TABLE IF NOT EXISTS links ( code TEXT PRIMARY KEY, url TEXT NOT NULL );`
+type Handler struct {
+	// db    *sql.DB
+	short shorter
+	store storer
+}
 
-func (handler *Handler) ShortenDb(w http.ResponseWriter, r *http.Request) {
+func NewHandler(short shorter, store storer) *Handler {
+	return &Handler{short: short, store: store}
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if _, err := handler.db.ExecContext(ctx, schema); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+func (handler *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
 	var url ShortenURL
 	defer r.Body.Close()
-	b, err := io.ReadAll(r.Body)
+
+	if err := json.NewDecoder(r.Body).Decode(&url); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	shorten, err := handler.short.generate()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// fmt.Println((r.PathValue("id")))
-	if err := json.Unmarshal(b, &url.URL); err != nil {
-		http.Error(w, err.Error(), http.StatusInsufficientStorage)
-		return
-	}
 
-	shorten, err := GetShortenURL()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInsufficientStorage)
-		return
-	}
-
-	ctx, cancel = context.WithTimeout(r.Context(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
-	if _, err := handler.db.ExecContext(ctx, `INSERT INTO links (code, url) VALUES(?,?)`, shorten, url.URL); err != nil {
-
-	}
-
-	// db.mux.Lock()
-	// db.data[shorten] = url.URL
-	// db.mux.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	// jsonStr := fmt.Sprintf(`{"message":"hello %s"}`, name)
-	// w.Write([]byte("{\"a\":\"1\"}"))
-	json.NewEncoder(w).Encode(map[string]string{
-		"shorthen": shorten,
-	})
-}
-
-// func shortenRedirectDb(w http.Response, r *http.Request) {
-// 	shorten := r.PathValue(("shorten"))
-// 	if row, ok := db.data[shorten]; ok {
-// 		delete(db.data, shorten)
-// 		http.Redirect(w, r, row, http.StatusNotFound)
-// 		return
-// 	}
-// 	w.WriteHeader(http.StatusFound)
-// }
-
-func ShortenMap(w http.ResponseWriter, r *http.Request) {
-	var url ShortenURL
-	defer r.Body.Close()
-	b, err := io.ReadAll(r.Body)
-	if err != nil {
+	if err := handler.store.Save(ctx, shorten, url.URL); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// fmt.Println((r.PathValue("id")))
-	if err := json.Unmarshal(b, &url.URL); err != nil {
-		http.Error(w, err.Error(), http.StatusInsufficientStorage)
-		return
-	}
 
-	shorten, err := GetShortenURL()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInsufficientStorage)
-		return
-	}
-	db.mux.Lock()
-	db.data[shorten] = url.URL
-	db.mux.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	// jsonStr := fmt.Sprintf(`{"message":"hello %s"}`, name)
-	// w.Write([]byte("{\"a\":\"1\"}"))
+	w.Header().Add("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"shorthen": shorten,
+		"shorten": shorten,
 	})
 }
 
-func ShortenCode(w http.ResponseWriter, r *http.Request) {
-	shorten := r.PathValue(("shorten"))
-	if row, ok := db.data[shorten]; ok {
-		delete(db.data, shorten)
-		http.Redirect(w, r, row, http.StatusNotFound)
-		return
-	}
-	w.WriteHeader(http.StatusFound)
-}
+func NewRawURLHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		shorten := r.PathValue("shorten")
 
-func GetShortenURL() (string, error) {
-	b := make([]byte, 6)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil // e.g. "aZ3xQ1"
-}
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
 
-// เก็บ mapping short -> url ]' map [string] string ก่อนยังไม่มี db
+		row := db.QueryRowContext(ctx, "SELECT url FROM links WHERE code = ?", shorten)
+
+		var url string
+		if err := row.Scan(&url); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "not found shorten", http.StatusNotFound)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, url, http.StatusFound)
+	}
+}

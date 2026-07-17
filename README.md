@@ -58,3 +58,37 @@ go get golang.org/x/time/rate
 go build ./...
 go test ./...
 ```
+
+## การใช้งานและการทดสอบ (Usage & Testing)
+
+### การตั้งค่า Environment
+ก๊อปปี้ไฟล์ `.env.example` ไปเป็น `.env` และตั้งค่าพอร์ตและตัวแปรต่างๆ:
+```sh
+cp .env.example .env
+```
+
+### วิธีการรัน Server
+```sh
+go run main.go
+```
+
+### วิธีการรัน Unit Test
+```sh
+go test -v ./...
+```
+
+### รายละเอียดการเพิ่ม Unit Test
+มีการเพิ่ม Unit Test เพื่อช่วยยืนยันความถูกต้องของ Handler และ Utility Logic (โดยที่ไม่ต้องต่อฐานข้อมูลจริง):
+1. **[short_test.go](file:///Users/pallat/workspace/gitlab.com/gophernment/fundamental/day3-starter/shorten/short_test.go)**: ทดสอบว่ารหัสย่อ URL (`shortenURL`) ถูกเจนขึ้นมาได้ถูกต้อง และมีความเป็น Unique (ไม่ซ้ำกันง่ายๆ จากการสุ่ม)
+2. **[shorten_test.go](file:///Users/pallat/workspace/gitlab.com/gophernment/fundamental/day3-starter/shorten/shorten_test.go)**: ทดสอบการทำงานของ `Handler.Shorten` โดยการใช้ Mocking สำหรับ interfaces `shorter` และ `storer` เพื่อจำลองการบันทึกข้อมูลและตรวจสอบการตอบสนองของ HTTP responses ในกรณีต่างๆ เช่น:
+   - ตรวจสอบ HTTP Method ที่ไม่อนุญาต (Method Not Allowed)
+   - กรณีรันสำเร็จ (Success path) และตรวจสอบการเซฟค่า
+   - กรณี Shorter/Storer ทำงานผิดพลาด (Error handling)
+
+### รายละเอียด .gitignore
+มีการเพิ่มไฟล์ `.gitignore` เพื่อแยกแยะไฟล์ที่ไม่ควรนำขึ้นระบบ Git:
+- Binaries และ Executables ต่างๆ
+- ไฟล์เก็บความลับเฉพาะเครื่อง เช่น `.env` (แต่ยกเว้น `.env.example`)
+- ไฟล์ SQLite Database (`*.db`, `*.db-journal`, `*.db-shm`, `*.db-wal`) เพื่อป้องกันข้อมูลทับซ้อน
+- การตั้งค่าเฉพาะของ IDEs (VS Code, GoLand, .idea, ฯลฯ)
+
