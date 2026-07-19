@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -13,52 +14,56 @@ type ShortenURL struct {
 	URL string `json:"url"`
 }
 
-type shorter interface {
+type ifcShorter interface {
 	generate() (string, error)
 }
 
-type storer interface {
+type ifStorer interface {
 	Save(ctx context.Context, shortenURL, rawURL string) error
 }
 
-type Handler struct {
+type AbHandler struct {
 	// db    *sql.DB
-	short shorter
-	store storer
+	fdShort ifcShorter
+	fdStore ifStorer
 }
 
-func NewHandler(short shorter, store storer) *Handler {
-	return &Handler{short: short, store: store}
+func CdNewHandler(short ifcShorter, store ifStorer) *AbHandler {
+	return &AbHandler{fdShort: short, fdStore: store}
 }
 
-func (handler *Handler) Shorten(w http.ResponseWriter, r *http.Request) {
+func (rcHandler *AbHandler) ShortenX(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Shorten init")
 	if r.Method != http.MethodPost {
+		fmt.Println("Shorten check method")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-
+	fmt.Println("Shorten A")
 	var url ShortenURL
 	defer r.Body.Close()
-
+	fmt.Println("Shorten before decode")
 	if err := json.NewDecoder(r.Body).Decode(&url); err != nil {
+		fmt.Println("Shorten error internal")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	shorten, err := handler.short.generate()
+	fmt.Println("Shorten before generate ")
+	shorten, err := rcHandler.fdShort.generate()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	fmt.Println("Shorten with timeout")
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
-
-	if err := handler.store.Save(ctx, shorten, url.URL); err != nil {
+	fmt.Println("Shorten before save")
+	if err := rcHandler.fdStore.Save(ctx, shorten, url.URL); err != nil {
+		fmt.Println("Shorten save error")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	fmt.Println("Shorten before response")
 	w.Header().Add("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"shorten": shorten,

@@ -6,16 +6,16 @@ import (
 	"fmt"
 )
 
-type store struct {
-	db *sql.DB
+type Dstore struct {
+	fdDb *sql.DB
 }
 
-func NewStore(db *sql.DB) *store {
-	return &store{db: db}
+func NewStore(db *sql.DB) *Dstore {
+	return &Dstore{fdDb: db}
 }
 
-func (s *store) Save(ctx context.Context, shortenURL, rawURL string) error {
-	if _, err := s.db.ExecContext(ctx, `INSERT INTO links (code, url) VALUES (?, ?)`, shortenURL, rawURL); err != nil {
+func (s *Dstore) Save(ctx context.Context, shortenURL, rawURL string) error {
+	if _, err := s.fdDb.ExecContext(ctx, `INSERT INTO links (code, url) VALUES (?, ?)`, shortenURL, rawURL); err != nil {
 		return fmt.Errorf("save shorten: %w", err)
 	}
 	return nil

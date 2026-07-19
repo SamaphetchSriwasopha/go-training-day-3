@@ -57,7 +57,7 @@ func main() {
 	store := shorten.NewStore(db)
 	short := shorten.NewShorter()
 
-	handler := shorten.NewHandler(short, store)
+	handler := shorten.CdNewHandler(short, store)
 	mySigningKey := []byte("AllYourBase")
 
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +79,7 @@ func main() {
 		})
 	})
 
-	mux.HandleFunc("/shorten", AuthenMiddleware(handler.Shorten, mySigningKey))
+	mux.HandleFunc("/shorten", AuthenMiddleware(handler.ShortenX, mySigningKey))
 	mux.HandleFunc("/{shorten}", shorten.NewRawURLHandler(db))
 
 	srv := &http.Server{
@@ -112,8 +112,10 @@ func main() {
 
 func AuthenMiddleware(handler http.HandlerFunc, signingKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("middleware func")
 		tokenString := r.Header.Get("Authorization")
 		if len(tokenString) < 7 {
+			fmt.Println("middleware error < 7")
 			http.Error(w, "ไม่บอก", http.StatusUnauthorized)
 			return
 		}
@@ -121,10 +123,12 @@ func AuthenMiddleware(handler http.HandlerFunc, signingKey []byte) http.HandlerF
 		tokenString = tokenString[7:]
 
 		_, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+			fmt.Println("middleware sign key ")
 			// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
 			return signingKey, nil
 		})
 		if err != nil {
+			fmt.Println("middleware error != nil ")
 			http.Error(w, "ไม่บอก", http.StatusUnauthorized)
 			return
 		}
