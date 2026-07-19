@@ -10,22 +10,22 @@ import (
 	"testing"
 )
 
-type mockShorter struct {
+type TypeAbMockShorter struct {
 	code string
 	err  error
 }
 
-func (m mockShorter) generate() (string, error) {
+func (m TypeAbMockShorter) GcGenerate() (string, error) {
 	return m.code, m.err
 }
 
-type mockStorer struct {
+type XyMockStorer struct {
 	savedCode string
 	savedURL  string
 	err       error
 }
 
-func (m *mockStorer) Save(ctx context.Context, shortenURL, rawURL string) error {
+func (m *XyMockStorer) Save(ctx context.Context, shortenURL, rawURL string) error {
 	m.savedCode = shortenURL
 	m.savedURL = rawURL
 	return m.err
@@ -33,11 +33,11 @@ func (m *mockStorer) Save(ctx context.Context, shortenURL, rawURL string) error 
 
 func TestHandlerShorten(t *testing.T) {
 	t.Run("Method Not Allowed", func(t *testing.T) {
-		h := NewHandler(mockShorter{}, &mockStorer{})
+		h := CdNewHandler(TypeAbMockShorter{}, &XyMockStorer{})
 		req := httptest.NewRequest(http.MethodGet, "/shorten", nil)
 		rec := httptest.NewRecorder()
 
-		h.Shorten(rec, req)
+		h.ShortenX(rec, req)
 
 		if rec.Code != http.StatusMethodNotAllowed {
 			t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, rec.Code)
@@ -45,9 +45,9 @@ func TestHandlerShorten(t *testing.T) {
 	})
 
 	t.Run("Success Path", func(t *testing.T) {
-		mockShort := mockShorter{code: "abc123"}
-		mockStore := &mockStorer{}
-		h := NewHandler(mockShort, mockStore)
+		mockShort := TypeAbMockShorter{code: "abc123"}
+		mockStore := &XyMockStorer{}
+		h := CdNewHandler(mockShort, mockStore)
 
 		inputBody := ShortenURL{URL: "https://example.com/some/long/url"}
 		bodyBytes, _ := json.Marshal(inputBody)
@@ -55,7 +55,7 @@ func TestHandlerShorten(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/shorten", bytes.NewBuffer(bodyBytes))
 		rec := httptest.NewRecorder()
 
-		h.Shorten(rec, req)
+		h.ShortenX(rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
@@ -81,8 +81,8 @@ func TestHandlerShorten(t *testing.T) {
 	})
 
 	t.Run("Shorter Error", func(t *testing.T) {
-		mockShort := mockShorter{err: errors.New("generation failed")}
-		h := NewHandler(mockShort, &mockStorer{})
+		mockShort := TypeAbMockShorter{err: errors.New("generation failed")}
+		h := CdNewHandler(mockShort, &XyMockStorer{})
 
 		inputBody := ShortenURL{URL: "https://example.com"}
 		bodyBytes, _ := json.Marshal(inputBody)
@@ -90,7 +90,7 @@ func TestHandlerShorten(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/shorten", bytes.NewBuffer(bodyBytes))
 		rec := httptest.NewRecorder()
 
-		h.Shorten(rec, req)
+		h.ShortenX(rec, req)
 
 		if rec.Code != http.StatusInternalServerError {
 			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
@@ -98,9 +98,9 @@ func TestHandlerShorten(t *testing.T) {
 	})
 
 	t.Run("Storer Error", func(t *testing.T) {
-		mockShort := mockShorter{code: "xyz"}
-		mockStore := &mockStorer{err: errors.New("db save error")}
-		h := NewHandler(mockShort, mockStore)
+		mockShort := TypeAbMockShorter{code: "xyz"}
+		mockStore := &XyMockStorer{err: errors.New("db save error")}
+		h := CdNewHandler(mockShort, mockStore)
 
 		inputBody := ShortenURL{URL: "https://example.com"}
 		bodyBytes, _ := json.Marshal(inputBody)
@@ -108,7 +108,7 @@ func TestHandlerShorten(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/shorten", bytes.NewBuffer(bodyBytes))
 		rec := httptest.NewRecorder()
 
-		h.Shorten(rec, req)
+		h.ShortenX(rec, req)
 
 		if rec.Code != http.StatusInternalServerError {
 			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
