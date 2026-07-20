@@ -14,21 +14,21 @@ type ShortenURL struct {
 	URL string `json:"url"`
 }
 
-type ifcShorter interface {
+type IfcShorter interface {
 	generate() (string, error)
 }
 
-type ifStorer interface {
+type IfdStorer interface {
 	Save(ctx context.Context, shortenURL, rawURL string) error
 }
 
 type AbHandler struct {
 	// db    *sql.DB
-	fdShort ifcShorter
-	fdStore ifStorer
+	fdShort IfcShorter
+	fdStore IfdStorer
 }
 
-func CdNewHandler(short ifcShorter, store ifStorer) *AbHandler {
+func CdNewHandler(short IfcShorter, store IfdStorer) *AbHandler {
 	return &AbHandler{fdShort: short, fdStore: store}
 }
 

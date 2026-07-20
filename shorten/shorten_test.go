@@ -15,7 +15,7 @@ type TypeAbMockShorter struct {
 	err  error
 }
 
-func (m TypeAbMockShorter) GcGenerate() (string, error) {
+func (m TypeAbMockShorter) generate() (string, error) {
 	return m.code, m.err
 }
 
